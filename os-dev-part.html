@@ -1,0 +1,148 @@
+<h1>Assembly Programming Guide</h1>
+<p></p>
+<p>Welcome to the <strong>Assembly Language</strong> guide for beginners. In this guide, we will walk through what assembly is, how to write basic code, and how to build a bootable program using `nasm`.</p>
+<p></p>
+<h2>What is Assembly?</h2>
+<p></p>
+<p>Assembly is a low-level language that communicates directly with hardware. It is specific to a CPU architecture.</p>
+<p></p>
+<p>We will focus on <strong>x86 real mode</strong> (16-bit) for this guide, commonly used in bootloaders.</p>
+<p></p>
+<h2>Tools You'll Need</h2>
+<p></p>
+<ul>
+<li>Linux, WSL, or macOS terminal</li>
+<li>`nasm` (Netwide Assembler)</li>
+<li>`qemu` or `VirtualBox`</li>
+<li>A text editor</li>
+</ul>
+<p></p>
+<h2>Installing NASM</h2>
+<p></p>
+<p>On Debian/Ubuntu:</p>
+<p></p>
+<pre><code>
+sudo apt install nasm
+</code></pre>
+<p></p>
+<p></p>
+<p>On openSUSE:</p>
+<p></p>
+<p>sudo zypper install nasm</p>
+<p></p>
+<p></p>
+<h2>Your First Bootloader</h2>
+<p></p>
+<p>Create a file called `boot.asm`:</p>
+<p></p>
+<pre><code>
+BITS 16
+ORG 0x7C00
+
+start:
+mov ah, 0x0E
+mov al, 'H'
+int 0x10
+mov al, 'i'
+int 0x10
+
+hang:
+jmp hang
+
+TIMES 510 - ($ - $$) db 0
+DW 0xAA55
+</code></pre>
+<p></p>
+<p></p>
+<p>This code:</p>
+<p></p>
+<ul>
+<li>Sets the code origin at `0x7C00` (where BIOS loads the bootloader)</li>
+<li>Uses BIOS interrupt `0x10` to print `"Hi"` on the screen</li>
+<li>Enters an infinite loop</li>
+</ul>
+<p></p>
+<h2>Compiling It</h2>
+<p></p>
+<p>Run the following:</p>
+<p></p>
+<p>nasm -f bin boot.asm -o boot.img</p>
+<p></p>
+<p></p>
+<h2>Running It in QEMU</h2>
+<p></p>
+<p>qemu-system-i386 -fda boot.img</p>
+<p></p>
+<p>You should see `Hi` printed in a black virtual machine window.</p>
+<p></p>
+<h2>Registers Overview</h2>
+<p></p>
+<ul>
+<li>**AX, BX, CX, DX** — general purpose 16-bit registers</li>
+<li>**SI, DI** — source and destination index</li>
+<li>**SP, BP** — stack pointer and base pointer</li>
+<li>**CS, DS, ES, SS** — segment registers</li>
+<li>**IP** — instruction pointer</li>
+<li>**FLAGS** — status flags</li>
+</ul>
+<p></p>
+<h2>Basic Instructions</h2>
+<p></p>
+<p>| Instruction | Description          |</p>
+<p>|-------------|----------------------|</p>
+<p>| `mov`       | Move data            |</p>
+<p>| `add`       | Add numbers          |</p>
+<p>| `sub`       | Subtract numbers     |</p>
+<p>| `jmp`       | Jump unconditionally |</p>
+<p>| `cmp`       | Compare values       |</p>
+<p>| `je`        | Jump if equal        |</p>
+<p>| `int`       | Call interrupt       |</p>
+<p></p>
+<h2>Common BIOS Interrupts</h2>
+<p></p>
+<p>| Interrupt | Description         |</p>
+<p>|-----------|---------------------|</p>
+<p>| `int 0x10`| Screen/video output |</p>
+<p>| `int 0x13`| Disk I/O            |</p>
+<p>| `int 0x16`| Keyboard input      |</p>
+<p></p>
+<h2>Example: Print a String</h2>
+<pre><code>
+ORG 0x7C00
+BITS 16
+
+mov si, msg
+
+print:
+lodsb
+cmp al, 0
+je done
+mov ah, 0x0E
+int 0x10
+jmp print
+
+done:
+jmp $
+
+msg db "Hello, world!", 0
+
+TIMES 510 - ($ - $$) db 0
+DW 0xAA55
+</code></pre>
+<p></p>
+<p></p>
+<p>This prints `"Hello, world!"` using a loop.</p>
+<p></p>
+<h2>Final Thoughts</h2>
+<p></p>
+<p>You've now:</p>
+<p></p>
+<ul>
+<li>Written a bootloader</li>
+<li>Learned basic x86 real-mode instructions</li>
+<li>Run your own OS code in QEMU!</li>
+</ul>
+<p></p>
+<p>For further exploration, check <a href="https://wiki.osdev.org/">OSDev.org</a>.</p>
+<p></p>
+<p></p>

@@ -1,0 +1,190 @@
+<h1>Assembly Programming Guide (Part 2): Entering Protected Mode</h1>
+<p></p>
+<p>Welcome back! In this part, we will cover how to switch the CPU from real mode to protected mode and load a simple 32-bit kernel.</p>
+<p></p>
+<h2>What is Protected Mode?</h2>
+<p></p>
+<p>Protected mode is a CPU mode that allows access to more memory (up to 4GB), hardware protection, paging, and 32-bit instructions. Modern operating systems run in this mode.</p>
+<p></p>
+<h2>Warning</h2>
+<p></p>
+<p>This code won't use a BIOS — once in protected mode, you can't call BIOS interrupts like `int 0x10`. We'll write everything low-level.</p>
+<p></p>
+<h2>Files We'll Create</h2>
+<p></p>
+<ul>
+<li>`boot.asm` — bootloader (real mode → protected mode)</li>
+<li>`kernel.asm` — simple 32-bit protected mode code</li>
+<li>`linker.ld` — for linking kernel</li>
+<li>`Makefile` — to compile all of it</li>
+</ul>
+<p></p>
+<h2>Directory Layout</h2>
+<p></p>
+<p>/project</p>
+<p>|-- boot.asm</p>
+<p>|-- kernel.asm</p>
+<p>|-- linker.ld</p>
+<p>|-- Makefile</p>
+<p>|-- iso/</p>
+<p></p>
+<p></p>
+<h2>boot.asm</h2>
+<p></p>
+<pre><code>
+[BITS 16]
+[ORG 0x7C00]
+
+start:
+cli
+xor ax, ax
+mov ds, ax
+mov es, ax
+mov ss, ax
+mov sp, 0x7C00
+; Load kernel (assume it's at sector 2, LBA)
+mov ah, 0x02        ; BIOS read sectors
+mov al, 2           ; number of sectors
+mov ch, 0
+mov cl, 2           ; LBA = 1
+mov dh, 0
+mov dl, 0x80        ; First HDD
+mov bx, 0x1000
+int 0x13
+jc disk_error
+
+; Setup GDT
+lgdt [gdt_descriptor]
+
+; Enable protected mode
+mov eax, cr0
+or eax, 1
+mov cr0, eax
+jmp CODE_SEG:init_pm
+
+[BITS 32]
+init_pm:
+mov ax, DATA_SEG
+mov ds, ax
+mov es, ax
+mov fs, ax
+mov gs, ax
+mov ss, ax
+mov esp, 0x90000
+call kernel_main
+hang:
+jmp hang
+
+disk_error:
+mov ah, 0x0E
+mov al, 'E'
+int 0x10
+jmp $
+
+; Global Descriptor Table
+gdt_start:
+dw 0 ; null
+dw 0, 0, 0, 0
+
+gdt_code:
+dw 0xFFFF ; limit
+dw 0x0000 ; base
+db 0x00
+db 10011010b
+db 11001111b
+db 0x00
+
+gdt_data:
+dw 0xFFFF
+dw 0x0000
+db 0x00
+db 10010010b
+db 11001111b
+db 0x00
+
+gdt_end:
+
+gdt_descriptor:
+dw gdt_end - gdt_start - 1
+dd gdt_start
+
+CODE_SEG equ gdt_code - gdt_start
+DATA_SEG equ gdt_data - gdt_start
+
+kernel_main:
+call 0x1000
+ret
+
+TIMES 510 - ($ - $$) db 0
+DW 0xAA55
+</code></pre>
+<p></p>
+<h2>kernel.asm</h2>
+<pre><code>
+[BITS 32]
+[GLOBAL _start]
+_start:
+mov eax, 0xC0FFEE
+mov ebx, 0xDEADBEEF
+.loop:
+hlt
+jmp .loop
+</code></pre>
+<p></p>
+<h2>linker.ld</h2>
+<pre><code>
+ENTRY(_start)
+SECTIONS {
+. = 0x1000;
+.text : {
+*(.text)
+}
+}
+</code></pre>
+<h2>Makefile</h2>
+<pre><code>
+all: os-image
+
+boot.o: boot.asm
+nasm -f bin boot.asm -o boot.o
+
+kernel.o: kernel.asm
+nasm -f elf kernel.asm -o kernel.o
+
+kernel.bin: kernel.o linker.ld
+ld -T linker.ld -o kernel.bin kernel.o --oformat binary
+
+os-image: boot.o kernel.bin
+cat boot.o kernel.bin > os-image.bin
+
+run: os-image
+qemu-system-i386 -fda os-image.bin
+
+clean:
+rm -f *.o *.bin
+</code></pre>
+<p></p>
+<p></p>
+<h2>Running It</h2>
+<p></p>
+<p>make</p>
+<p>make run</p>
+<p></p>
+<p></p>
+<p>If all goes well, it will boot into protected mode and hang the CPU (`hlt`), ready for more code.</p>
+<p></p>
+<h2>What's Next?</h2>
+<p></p>
+<p>In future parts, you can explore:</p>
+<p></p>
+<ul>
+<li>Writing C kernel code after boot</li>
+<li>Paging and memory management</li>
+<li>Interrupts (IDT)</li>
+<li>Keyboard input in PM</li>
+</ul>
+<p></p>
+<p>Stay tuned!</p>
+<p></p>
+<p></p>
+<p></p>

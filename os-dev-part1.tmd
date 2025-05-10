@@ -1,0 +1,139 @@
+# Assembly Programming Guide
+
+Welcome to the **Assembly Language** guide for beginners. In this guide, we will walk through what assembly is, how to write basic code, and how to build a bootable program using `nasm`.
+
+## What is Assembly?
+
+Assembly is a low-level language that communicates directly with hardware. It is specific to a CPU architecture.
+
+We will focus on **x86 real mode** (16-bit) for this guide, commonly used in bootloaders.
+
+## Tools You'll Need
+
+* Linux, WSL, or macOS terminal
+* `nasm` (Netwide Assembler)
+* `qemu` or `VirtualBox`
+* A text editor
+
+## Installing NASM
+
+On Debian/Ubuntu:
+
+```
+sudo apt install nasm
+```
+
+
+On openSUSE:
+
+sudo zypper install nasm
+
+
+## Your First Bootloader
+
+Create a file called `boot.asm`:
+
+```
+BITS 16
+ORG 0x7C00
+
+start:
+mov ah, 0x0E
+mov al, 'H'
+int 0x10
+mov al, 'i'
+int 0x10
+
+hang:
+jmp hang
+
+TIMES 510 - ($ - $$) db 0
+DW 0xAA55
+```
+
+
+This code:
+
+* Sets the code origin at `0x7C00` (where BIOS loads the bootloader)
+* Uses BIOS interrupt `0x10` to print `"Hi"` on the screen
+* Enters an infinite loop
+
+## Compiling It
+
+Run the following:
+
+nasm -f bin boot.asm -o boot.img
+
+
+## Running It in QEMU
+
+qemu-system-i386 -fda boot.img
+
+You should see `Hi` printed in a black virtual machine window.
+
+## Registers Overview
+
+* **AX, BX, CX, DX** — general purpose 16-bit registers
+* **SI, DI** — source and destination index
+* **SP, BP** — stack pointer and base pointer
+* **CS, DS, ES, SS** — segment registers
+* **IP** — instruction pointer
+* **FLAGS** — status flags
+
+## Basic Instructions
+
+| Instruction | Description          |
+|-------------|----------------------|
+| `mov`       | Move data            |
+| `add`       | Add numbers          |
+| `sub`       | Subtract numbers     |
+| `jmp`       | Jump unconditionally |
+| `cmp`       | Compare values       |
+| `je`        | Jump if equal        |
+| `int`       | Call interrupt       |
+
+## Common BIOS Interrupts
+
+| Interrupt | Description         |
+|-----------|---------------------|
+| `int 0x10`| Screen/video output |
+| `int 0x13`| Disk I/O            |
+| `int 0x16`| Keyboard input      |
+
+## Example: Print a String
+```
+ORG 0x7C00
+BITS 16
+
+mov si, msg
+
+print:
+lodsb
+cmp al, 0
+je done
+mov ah, 0x0E
+int 0x10
+jmp print
+
+done:
+jmp $
+
+msg db "Hello, world!", 0
+
+TIMES 510 - ($ - $$) db 0
+DW 0xAA55
+```
+
+
+This prints `"Hello, world!"` using a loop.
+
+## Final Thoughts
+
+You've now:
+
+* Written a bootloader
+* Learned basic x86 real-mode instructions
+* Run your own OS code in QEMU!
+
+For further exploration, check [[OSDev.org|https://wiki.osdev.org/]].
+
