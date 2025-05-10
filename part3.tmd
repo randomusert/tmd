@@ -1,0 +1,166 @@
+# Assembly Programming Guide (Part 3): Calling a C Kernel
+
+Now that we can enter Protected Mode, it's time to load a real kernel written in C!
+
+## What You'll Learn
+
+* Writing a 32-bit kernel in C
+* Linking C and Assembly
+* Compiling with GCC
+* Creating a bootable image
+
+## File Structure
+
+We will have these files in the project folder:
+
+- boot.asm
+- kernel.c
+- linker.ld
+- Makefile
+
+## Step 1: boot.asm
+
+This is our updated bootloader that enters protected mode and jumps to the kernel C entry point.
+
+```
+[BITS 16]
+[ORG 0x7C00]
+
+start:
+    cli
+    xor ax, ax
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov sp, 0x7C00
+
+    ; Load kernel
+    mov ah, 0x02
+    mov al, 4
+    mov ch, 0
+    mov cl, 2
+    mov dh, 0
+    mov dl, 0x80
+    mov bx, 0x1000
+    int 0x13
+    jc disk_error
+
+    ; Set up GDT
+    lgdt [gdt_descriptor]
+
+    ; Enable Protected Mode
+    mov eax, cr0
+    or eax, 1
+    mov cr0, eax
+    jmp CODE_SEG:pm_entry
+
+disk_error:
+    mov ah, 0x0E
+    mov al, 'E'
+    int 0x10
+    jmp $
+
+gdt_start:
+    dq 0x0000000000000000
+    dq 0x00CF9A000000FFFF
+    dq 0x00CF92000000FFFF
+gdt_end:
+
+gdt_descriptor:
+    dw gdt_end - gdt_start - 1
+    dd gdt_start
+
+CODE_SEG equ 0x08
+DATA_SEG equ 0x10
+
+[BITS 32]
+pm_entry:
+    mov ax, DATA_SEG
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+    mov esp, 0x90000
+
+    extern kernel_main
+    call kernel_main
+
+.hang:
+    hlt
+    jmp .hang
+
+TIMES 510 - ($ - $$) db 0
+DW 0xAA55
+
+```
+# Step 3: linker.ld
+This tells the linker where to place things in memory.
+
+```
+ENTRY(kernel_main)
+
+SECTIONS {
+    . = 0x1000;
+
+    .text : {
+        *(.text)
+    }
+
+    .rodata : {
+        *(.rodata)
+    }
+
+    .data : {
+        *(.data)
+    }
+
+    .bss : {
+        *(.bss COMMON)
+    }
+}
+```
+
+# Step 4: Makefile
+Use this to build everything.
+
+```
+all: os-image
+
+boot.o: boot.asm
+	nasm -f bin boot.asm -o boot.o
+
+kernel.o: kernel.c
+	i686-elf-gcc -ffreestanding -m32 -c kernel.c -o kernel.o
+
+kernel.bin: kernel.o linker.ld
+	i686-elf-ld -T linker.ld -o kernel.bin kernel.o --oformat binary
+
+os-image: boot.o kernel.bin
+	cat boot.o kernel.bin > os-image.bin
+
+run:
+	qemu-system-i386 -fda os-image.bin
+
+clean:
+	rm -f *.o *.bin *.iso
+```
+
+# Step 5: Compile and Run
+Make sure you have an i686-elf cross compiler installed!
+
+Then:
+```
+make
+make run
+```
+
+You should see your C kernel message on the screen.
+
+What’s Next?
+
+
+You now have a minimal real-world OS kernel in C!
+
+
+please note: use osdev.org  wiki to get more information when required!
