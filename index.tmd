@@ -1,0 +1,3 @@
+# the root for the os dev guide
+[[guide part 1| ./os-dev-part.html]]
+[[guide part 2| ./os-dev-part2.html]]
