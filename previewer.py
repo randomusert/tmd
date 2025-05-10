@@ -1,99 +1,77 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext
-import re
+import os
+from main import parse_custom_markup_to_html, parse_custom_markup_to_md  # Import your parser here
 
-def parse_custom_markup(text, output_format):
-    lines = text.splitlines()
-    result = []
-    in_code = False
-
-    def convert_line(line):
-        if line.startswith("# "): return f"<h1>{line[2:]}</h1>" if output_format == "html" else f"# {line[2:]}"
-        if line.startswith("## "): return f"<h2>{line[3:]}</h2>" if output_format == "html" else f"## {line[3:]}"
-        if line.startswith("### "): return f"<h3>{line[4:]}</h3>" if output_format == "html" else f"### {line[4:]}"
-        if line.startswith("* "): return f"<li>{line[2:]}</li>" if output_format == "html" else f"- {line[2:]}"
-        if line.strip().startswith("```"): return "<pre><code>" if output_format == "html" else "```"
-        if "|" in line and not in_code:
-            cells = [cell.strip() for cell in line.split("|")]
-            if output_format == "html":
-                return "<tr>" + "".join(f"<td>{c}</td>" for c in cells if c) + "</tr>"
-            else:
-                return "| " + " | ".join(cells) + " |"
-        line = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>" if output_format == "html" else r"**\1**", line)
-        line = re.sub(r"\*(.*?)\*", r"<em>\1</em>" if output_format == "html" else r"*\1*", line)
-        return line
-
-    for i, line in enumerate(lines):
-        if line.strip().startswith("```"):
-            if in_code:
-                result.append("</code></pre>" if output_format == "html" else "```")
-                in_code = False
-            else:
-                result.append("<pre><code>" if output_format == "html" else "```")
-                in_code = True
-            continue
-
-        if output_format == "html" and "|" in line and not in_code:
-            if not result or not result[-1].startswith("<table>"):
-                result.append("<table>")
-            result.append(convert_line(line))
-            if i + 1 >= len(lines) or "|" not in lines[i + 1]:
-                result.append("</table>")
-        else:
-            result.append(convert_line(line))
-
-    return "\n".join(result)
-
-class MarkupPreviewer:
+class TmdEditor:
     def __init__(self, root):
         self.root = root
-        self.root.title("Custom Markup Previewer")
+        self.root.title("TMD Editor & Previewer")
 
+        self.filename = None
         self.format_var = tk.StringVar(value="markdown")
 
-        # Buttons and options
-        tk.Button(root, text="Load File", command=self.load_file).pack(pady=5)
-        tk.OptionMenu(root, self.format_var, "markdown", "html").pack()
-        tk.Button(root, text="Preview", command=self.preview).pack(pady=5)
-        tk.Button(root, text="Save Output", command=self.save_output).pack(pady=5)
+        # Editor area (left)
+        self.editor = scrolledtext.ScrolledText(root, width=60, height=30)
+        self.editor.grid(row=0, column=0, padx=5, pady=5)
 
-        # Text area
-        self.output_text = scrolledtext.ScrolledText(root, width=100, height=30)
-        self.output_text.pack()
+        # Preview area (right)
+        self.preview = scrolledtext.ScrolledText(root, width=60, height=30, state='disabled')
+        self.preview.grid(row=0, column=1, padx=5, pady=5)
 
-        self.loaded_text = ""
+        # Buttons
+        control_frame = tk.Frame(root)
+        control_frame.grid(row=1, column=0, columnspan=2, pady=5)
+
+        tk.Button(control_frame, text="Open .tmd", command=self.load_file).pack(side=tk.LEFT, padx=5)
+        tk.Button(control_frame, text="Save .tmd", command=self.save_file).pack(side=tk.LEFT, padx=5)
+        tk.Button(control_frame, text="Preview", command=self.render_preview).pack(side=tk.LEFT, padx=5)
+        tk.Button(control_frame, text="Export Output", command=self.export_output).pack(side=tk.LEFT, padx=5)
+        tk.OptionMenu(control_frame, self.format_var, "markdown", "html").pack(side=tk.LEFT)
 
     def load_file(self):
-        path = filedialog.askopenfilename(filetypes=[("Markup files", "*.txt *.md *.markup"), ("All files", "*.*")])
+        path = filedialog.askopenfilename(filetypes=[("TMD files", "*.tmd"), ("All files", "*.*")])
         if path:
-            with open(path, "r", encoding="utf-8") as f:
-                self.loaded_text = f.read()
-            messagebox.showinfo("File Loaded", f"Loaded: {path}")
+            with open(path, 'r', encoding='utf-8') as f:
+                self.editor.delete("1.0", tk.END)
+                self.editor.insert(tk.END, f.read())
+                self.filename = path
+                messagebox.showinfo("Opened", f"Loaded {os.path.basename(path)}")
 
-    def preview(self):
-        if not self.loaded_text:
-            messagebox.showwarning("No file", "Load a file first!")
+    def save_file(self):
+        if not self.filename:
+            self.filename = filedialog.asksaveasfilename(defaultextension=".tmd", filetypes=[("TMD files", "*.tmd")])
+        if self.filename:
+            with open(self.filename, 'w', encoding='utf-8') as f:
+                f.write(self.editor.get("1.0", tk.END).strip())
+            messagebox.showinfo("Saved", f"Saved to {os.path.basename(self.filename)}")
+
+    def render_preview(self):
+        content = self.editor.get("1.0", tk.END).strip()
+        if not content:
             return
         fmt = self.format_var.get()
-        parsed = parse_custom_markup(self.loaded_text, fmt)
-        self.output_text.delete("1.0", tk.END)
-        self.output_text.insert(tk.END, parsed)
+        rendered = parse_custom_markup_to_html(content)
+        self.preview.config(state='normal')
+        self.preview.delete("1.0", tk.END)
+        self.preview.insert(tk.END, rendered)
+        self.preview.config(state='disabled')
 
-    def save_output(self):
-        if not self.loaded_text:
-            messagebox.showwarning("No content", "Nothing to save.")
+    def export_output(self):
+        content = self.editor.get("1.0", tk.END).strip()
+        if not content:
             return
-        output = self.output_text.get("1.0", tk.END).strip()
-        if not output:
-            messagebox.showwarning("No output", "Preview first.")
-            return
-        path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("All files", "*.*")])
+        fmt = "html"
+        output = parse_custom_markup_to_html(content)
+        ext = ".html" if fmt == "html" else ".md"
+        path = filedialog.asksaveasfilename(defaultextension=ext,
+                                            filetypes=[("HTML", "*.html")] if fmt == "html" else [("Markdown", "*.md")])
         if path:
-            with open(path, "w", encoding="utf-8") as f:
+            with open(path, 'w', encoding='utf-8') as f:
                 f.write(output)
-            messagebox.showinfo("Saved", f"Output saved to {path}")
+            messagebox.showinfo("Exported", f"Saved to {os.path.basename(path)}")
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = MarkupPreviewer(root)
+    app = TmdEditor(root)
     root.mainloop()
